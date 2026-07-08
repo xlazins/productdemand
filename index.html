@@ -73,70 +73,129 @@
   <div class="main">
     <div class="topbar">
       <div>
-        <div class="topbar-title">Product Demand</div>
-        <div class="topbar-sub">What's actually showing real buying demand right now — not just trending ads</div>
+        <div class="topbar-title" id="topbar-title">Product Demand</div>
+        <div class="topbar-sub" id="topbar-sub">What's actually showing real buying demand right now — not just trending ads</div>
       </div>
       <div class="topbar-right">
         <span class="pill"><span class="dot"></span>Live</span>
-        <button class="btn">Export CSV</button>
+        <button class="btn" id="export-btn">Export CSV</button>
       </div>
     </div>
 
-    <div class="statusbar">
-      <div class="stat">
-        <div class="stat-label">Products Tracked</div>
-        <div class="stat-value">2,140</div>
-        <div class="stat-delta up">+118 this week</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">High-Demand (24h)</div>
-        <div class="stat-value">61</div>
-        <div class="stat-delta up">+9 vs yesterday</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Avg. Demand Score</div>
-        <div class="stat-value">54</div>
-        <div class="stat-delta down">-2 vs last week</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Out-of-Stock Rate</div>
-        <div class="stat-value green">6.1%</div>
-        <div class="stat-delta up">improving</div>
-      </div>
+    <div class="section-tabs">
+      <button class="section-tab active" data-section="demand">Demand Overview</button>
+      <button class="section-tab" data-section="flash">Flash Sales</button>
+      <button class="section-tab" data-section="reviews">Recent Reviews</button>
+      <button class="section-tab" data-section="sellers">Sellers to Watch</button>
     </div>
 
-    <div class="toolbar">
-      <input class="search-box" type="text" placeholder="Search products..." id="search-box">
-      <div class="filter-group">
-        <button class="btn-ghost active" data-filter="all">All categories</button>
-        <button class="btn-ghost" data-filter="Home Decor">Home Decor</button>
-        <button class="btn-ghost" data-filter="Auto Accessories">Auto</button>
-        <button class="btn-ghost" data-filter="Personal Care">Personal Care</button>
-        <button class="btn-ghost" data-filter="Electronics">Electronics</button>
+    <!-- ===================== DEMAND OVERVIEW ===================== -->
+    <section class="view active" id="view-demand">
+      <div class="statusbar">
+        <div class="stat">
+          <div class="stat-label">Products Tracked</div>
+          <div class="stat-value">2,140</div>
+          <div class="stat-delta up">+118 this week</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">High-Demand (24h)</div>
+          <div class="stat-value">61</div>
+          <div class="stat-delta up">+9 vs yesterday</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Avg. Demand Score</div>
+          <div class="stat-value">54</div>
+          <div class="stat-delta down">-2 vs last week</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Out-of-Stock Rate</div>
+          <div class="stat-value green">6.1%</div>
+          <div class="stat-delta up">improving</div>
+        </div>
       </div>
-    </div>
 
-    <div class="body-area">
-      <div class="card">
-        <table>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Price</th>
-              <th>Demand Score</th>
-              <th>7d Trend</th>
-              <th>Reviews</th>
-              <th>Stock</th>
-            </tr>
-          </thead>
-          <tbody id="demand-body"></tbody>
-        </table>
+      <div class="toolbar">
+        <input class="search-box" type="text" placeholder="Search products..." id="search-box">
+        <div class="filter-group">
+          <button class="btn-ghost active" data-filter="all">All categories</button>
+          <button class="btn-ghost" data-filter="Home Decor">Home Decor</button>
+          <button class="btn-ghost" data-filter="Auto Accessories">Auto</button>
+          <button class="btn-ghost" data-filter="Personal Care">Personal Care</button>
+          <button class="btn-ghost" data-filter="Electronics">Electronics</button>
+        </div>
       </div>
-    </div>
+
+      <div class="body-area">
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Price</th>
+                <th>Demand Score</th>
+                <th>7d Trend</th>
+                <th>Reviews</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody id="demand-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== FLASH SALES ===================== -->
+    <section class="view" id="view-flash">
+      <div class="body-area">
+        <div class="section-intro">
+          <div class="section-intro-title">Live flash-sale stock depletion</div>
+          <div class="section-intro-sub">Jumia pre-selects these as high-turnover — stock claimed % is your closest thing to a real-time demand signal.</div>
+        </div>
+        <div class="flash-grid" id="flash-grid"></div>
+      </div>
+    </section>
+
+    <!-- ===================== RECENT REVIEWS ===================== -->
+    <section class="view" id="view-reviews">
+      <div class="body-area">
+        <div class="section-intro">
+          <div class="section-intro-title">Review velocity feed</div>
+          <div class="section-intro-sub">Newest verified reviews across tracked products — your most reliable purchase-linked signal.</div>
+        </div>
+        <div class="card">
+          <div id="reviews-feed"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SELLERS TO WATCH ===================== -->
+    <section class="view" id="view-sellers">
+      <div class="body-area">
+        <div class="section-intro">
+          <div class="section-intro-title">Sellers with repeated flash-sale placement</div>
+          <div class="section-intro-sub">Multiple products in flash sales, sustained over time — a stronger signal than any single product.</div>
+        </div>
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>Seller</th>
+                <th>Flash-sale products (now)</th>
+                <th>Appearances (30d)</th>
+                <th>Avg. depletion rate</th>
+                <th>Category spread</th>
+                <th>Seller rating</th>
+              </tr>
+            </thead>
+            <tbody id="sellers-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
     <footer>
       <span>Souq Radar — demo build, mock data</span>
-      <span>v0.5 — product detail view</span>
+      <span>v0.6 — sectioned dashboard</span>
     </footer>
   </div>
 
