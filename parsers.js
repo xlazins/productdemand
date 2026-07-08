@@ -30,30 +30,72 @@ export function parseListingCards(html) {
   const $ = cheerio.load(html);
   const results = [];
 
+  // CONFIRMED against a live /flash-sales/ dump (63 cards matched this selector).
   $("article.prd").each((_, el) => {
-    // VERIFY: product card container
     const card = $(el);
-    const link = card.find("a.core"); // VERIFY: main link wrapping the card
-    const name = card.find("h3.name").text().trim() || null;
-    const price = toFloat(card.find("div.prc").text());
-    const oldPrice = toFloat(card.find("div.old").text()); // VERIFY: strikethrough price
-    const discountLabel = card.find("div.bdg._dsct").text().trim() || null; // VERIFY: discount badge
 
-    // Flash-sale-specific: stock progress bar, if present
-    const stockBar = card.find("div.bgt"); // VERIFY: "% claimed" bar
+    // The "core" link carries Jumia's own GA4 analytics attributes with
+    // clean, already-parsed values (name/price/id/category/brand/discount).
+    // These are more reliable than scraping visible text, so prefer them
+    // and fall back to text parsing only if an attribute is missing.
+    const link = card.find("a.core");
+    const ga4Name = link.attr("data-ga4-item_name");
+    const ga4Price = link.attr("data-ga4-price");
+    const ga4Id = link.attr("data-ga4-item_id");
+    const ga4Brand = link.attr("data-ga4-item_brand");
+    const ga4Category = link.attr("data-ga4-item_category");
+    const ga4Discount = link.attr("data-ga4-discount");
+
+    const name = (ga4Name && ga4Name.trim()) || card.find("h3.name").text().trim() || null;
+    const price = ga4Price ? parseFloat(ga4Price) : toFloat(card.find("div.prc").text());
+    const oldPrice = toFloat(card.find("div.old").text()); // confirmed: only present when discounted
+    const discountLabel = card.find("div.bdg._dsct").text().trim() || null; // confirmed, e.g. "30%"
+    const discountAmount = ga4Discount ? parseFloat(ga4Discount) : null;
+
+    // SKU lives on the wishlist button, not the main link.
+    const sku = card.find("a[data-sku]").attr("data-sku") || ga4Id || null;
+
+    // Stock-left signal: text like "13 articles restants" sits in div.stk,
+    // and the % claimed is embedded in the inline style of the nested
+    // div.meter._s as a linear-gradient stop (NOT a simple width:%).
+    // e.g. style="background-image:linear-gradient(to right,#f68b1e 86.67%,#a3a3a6 86.67%)"
+    const stockText = card.find("div.stk").clone().children().remove().end().text().trim() || null;
+    const stockUnitsLeft = stockText ? toFloat(stockText) : null;
+
+    const meter = card.find("div.meter._s");
     let stockClaimedPct = null;
-    const styleAttr = stockBar.attr("style");
+    const styleAttr = meter.attr("style");
     if (styleAttr) {
-      const m = styleAttr.match(/width:\s*(\d+)%/);
-      if (m) stockClaimedPct = parseInt(m[1], 10);
+      const m = styleAttr.match(/linear-gradient\([^,]+,\s*[^,]+\s+([\d.]+)%/);
+      if (m) stockClaimedPct = parseFloat(m[1]);
+    }
+
+    // Rating + review count: div.rev -> "4 out of 5" text + trailing "(9)".
+    // Not every card has this yet (only present once a product has reviews).
+    const revBlock = card.find("div.rev");
+    let rating = null;
+    let reviewCount = null;
+    if (revBlock.length) {
+      const starsText = revBlock.find("div.stars._s").text(); // "4 out of 5"
+      rating = starsText ? toFloat(starsText) : null;
+      const fullText = revBlock.text(); // "...4 out of 5(9)"
+      const countMatch = fullText.match(/\((\d+)\)/);
+      reviewCount = countMatch ? parseInt(countMatch[1], 10) : null;
     }
 
     results.push({
+      sku,
       name,
+      brand: ga4Brand || null,
+      category: ga4Category || null,
       productUrl: link.attr("href") || null,
       price,
       oldPrice,
       discountLabel,
+      discountAmount,
+      rating,
+      reviewCount,
+      flashSaleStockUnitsLeft: stockUnitsLeft,
       flashSaleStockClaimedPct: stockClaimedPct,
     });
   });
