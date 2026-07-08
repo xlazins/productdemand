@@ -20,7 +20,7 @@ const FLASH_SALES_URL = new URL("/flash-sales/", BASE_URL).toString();
 const CATEGORY_URLS = [
   new URL("/telephone-tablette/", BASE_URL).toString(),
   new URL("/maison-cuisine/", BASE_URL).toString(),
-  new URL("/beaute-sante/", BASE_URL).toString(),
+  new URL("/beaute-hygiene-sante/", BASE_URL).toString(),
 ];
 
 async function scrapeListing(client, url, label) {
