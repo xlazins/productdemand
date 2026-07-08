@@ -1,0 +1,16 @@
+{
+  "name": "jumia-scraper",
+  "version": "1.0.0",
+  "description": "Rate-limited, self-identified scraper for jumia.ma",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "inspect": "node inspectPage.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "cheerio": "^1.0.0",
+    "pg": "^8.12.0"
+  }
+}
