@@ -108,90 +108,106 @@ export function parseListingCards(html) {
  * stock, and — critically — the individual dated reviews, which is your
  * primary demand-velocity signal.
  */
+/**
+ * Parses a single product detail page: identity, price, rating, seller,
+ * stock, and — critically — the individual dated reviews, which is your
+ * primary demand-velocity signal.
+ *
+ * NOTE (confirmed against a live product page): the page embeds a full
+ * schema.org JSON-LD block (<script type="application/ld+json">) with
+ * clean name/brand/sku/price/category/seller/aggregateRating data. That's
+ * far more reliable than CSS-scraping scattered spans, so we parse that
+ * first and only fall back to DOM selectors for things JSON-LD doesn't
+ * carry (seller %, follower count, stock text).
+ *
+ * IMPORTANT: individual dated reviews are NOT present in this page's HTML.
+ * The page only shows an aggregate count + a link like "(3 avis vérifiés)"
+ * pointing to /sku/{sku}/ — that's a separate page/endpoint. If you want
+ * per-review dates (needed for real velocity tracking), main.js needs to
+ * fetch that /sku/{sku}/ URL separately and parse it — this function alone
+ * cannot give you that.
+ */
 export function parseProductPage(html) {
   const $ = cheerio.load(html);
 
-  let sku = null;
-  $("*").each((_, el) => {
-    const t = $(el).text();
-    if (/^SKU/i.test(t.trim()) && !sku) {
-      sku = t.replace(/SKU/i, "").trim().replace(/^:/, "").trim();
+  // --- Primary source: JSON-LD schema block ---
+  let ld = null;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (ld) return; // already found one
+    try {
+      const parsed = JSON.parse($(el).contents().text());
+      const graph = parsed["@graph"] || [parsed];
+      const product = graph.find((n) => n["@type"] === "Product");
+      if (product) ld = { parsed, product, graph };
+    } catch {
+      // not valid JSON / not the block we want — skip
     }
   });
 
-  const name = $("h1.-fs20").first().text().trim() || null; // VERIFY: product title
-  const brand = $("a.link-to-brandstore").first().text().trim() || null; // VERIFY: brand link
+  const product = ld?.product || null;
 
-  const price = toFloat($("span.-b.-ltr.-tal.-fs24").first().text()); // VERIFY: current price
-  const oldPrice = toFloat($("span.-tal.-gy5.-lthr").first().text()); // VERIFY: original price
+  const sku = product?.sku || null;
+  const name = (product?.name && product.name.trim()) || null;
+  const brand = product?.brand?.name || null;
+  const category = product?.category || null;
 
-  const ratingText = $("div.stars._m._al").first().text(); // VERIFY: rating summary block
-  const rating = ratingText ? toFloat(ratingText) : null;
+  const price = product?.offers?.price ? parseFloat(product.offers.price) : null;
+  const currency = product?.offers?.priceCurrency || null;
+  const inStock = product?.offers?.availability
+    ? /InStock/i.test(product.offers.availability)
+    : null;
 
-  let reviewCount = null;
-  $("*").each((_, el) => {
-    const t = $(el).text();
-    if (/avis|reviews/i.test(t) && reviewCount === null) {
-      const m = t.match(/[\d,.]+/);
-      if (m) reviewCount = parseInt(m[0].replace(/,/g, ""), 10);
-    }
-  });
+  const sellerName = product?.offers?.seller?.name || null;
+  const sellerId = product?.offers?.seller?.["@id"] || null;
 
-  // Rating breakdown by star (5..1), if shown as a bar chart
-  const breakdown = {};
-  $("div.rev-brk-item").each((_, el) => {
-    // VERIFY: per-star breakdown row
-    const row = $(el);
-    const starLabel = row.find("span.-fs14").text().trim();
-    const count = row.find("span.-gy5").text().trim();
-    if (starLabel && count) breakdown[starLabel] = count;
-  });
-
-  const sellerName = $("p.-m.-pvs.-hr._s.-oxf.-sbcnt a").first().text().trim() || null; // VERIFY
-  const sellerRating = $("div.rating.-mvs").first().text().trim() || null; // VERIFY
-
-  const stockStatus = $("p.-df.-i-ctr.-fs12").first().text().trim() || null; // VERIFY
+  const rating = product?.aggregateRating?.ratingValue ?? null;
+  const reviewCount = product?.aggregateRating?.ratingCount ?? null;
 
   const categoryBreadcrumb = [];
-  $("div.brcbs a").each((_, el) => {
-    // VERIFY: breadcrumb links
+  const breadcrumbNode = ld?.graph?.find((n) => n["@type"] === "BreadcrumbList");
+  if (breadcrumbNode?.itemListElement) {
+    for (const item of breadcrumbNode.itemListElement) {
+      const label = item.item?.name;
+      if (label) categoryBreadcrumb.push(label);
+    }
+  }
+
+  // --- Fallback / supplementary: things JSON-LD doesn't carry ---
+  // Old/strikethrough price, if discounted (JSON-LD only gives the live price).
+  const oldPrice = toFloat($("span.-tal.-gy5.-lthr").first().text()) || null;
+
+  // Seller performance %: text like "94%Évaluation du vendeur" near the seller block.
+  let sellerRatingPct = null;
+  $("bdo[dir='ltr']").each((_, el) => {
     const t = $(el).text().trim();
-    if (t) categoryBreadcrumb.push(t);
+    if (/^\d+%$/.test(t) && sellerRatingPct === null) {
+      sellerRatingPct = parseFloat(t);
+    }
   });
 
-  const reviews = [];
-  $("article.-pvs.-hr").each((_, el) => {
-    // VERIFY: each individual review block
-    const rev = $(el);
-    const reviewer = rev.find("p.-m.-pbs").first().text().trim() || null;
-    const revRatingText = rev.find("div.stars._s").first().text();
-    const revRating = revRatingText ? toFloat(revRatingText) : null;
-    const revDate = rev.find("p.-pvs span").first().text().trim() || null; // VERIFY: e.g. "15-04-2026"
-    const revText = rev.find("p.-pvs.-hr").first().text().trim() || null;
-    const verified = /achat vérifié/i.test(rev.text());
+  // Seller follower count: <p data-followers="true"><span class="-m">1511 </span>...
+  const followerText = $('p[data-followers="true"] span.-m').first().text().trim();
+  const sellerFollowers = followerText ? parseInt(followerText.replace(/[^\d]/g, ""), 10) : null;
 
-    reviews.push({
-      reviewer,
-      rating: revRating,
-      date: revDate,
-      text: revText,
-      verifiedPurchase: verified,
-    });
-  });
+  // Link to the separate reviews page, since individual reviews live there, not here.
+  const reviewsPageUrl = sku ? `/sku/${sku}/` : null;
 
   return {
     sku,
     name,
     brand,
+    category,
     price,
     oldPrice,
+    currency,
+    inStock,
     rating,
     reviewCount,
-    ratingBreakdown: breakdown,
     sellerName,
-    sellerRating,
-    stockStatus,
+    sellerId,
+    sellerRatingPct,
+    sellerFollowers,
     categoryBreadcrumb,
-    reviews,
+    reviewsPageUrl, // fetch + parse this separately for dated individual reviews
   };
 }
